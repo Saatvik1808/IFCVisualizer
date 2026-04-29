@@ -74,6 +74,7 @@ END-ISO-10303-21;`;
 
 let parsedData = null;
 let selectedEntity = null;
+let currentInputMode = 'paste';
 
 // DOM refs
 const $ = id => document.getElementById(id);
@@ -85,10 +86,95 @@ const backBtn = $('backToInput');
 const ifcInput = $('ifcInput');
 const entitySearch = $('entitySearch');
 const categoryFilter = $('categoryFilter');
+const fileInput = $('fileInput');
+const uploadZone = $('uploadZone');
+const urlInput = $('urlInput');
+const parseHint = $('parseHint');
+
+// ===== Input Tab Switching =====
+document.querySelectorAll('.input-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    currentInputMode = tab.dataset.mode;
+    document.querySelectorAll('.input-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.input-mode').forEach(m => m.classList.remove('active'));
+    $(`mode-${currentInputMode}`).classList.add('active');
+    parseHint.textContent = '';
+  });
+});
+
+// ===== File Upload =====
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  const name = file.name;
+  const size = file.size < 1024*1024
+    ? (file.size / 1024).toFixed(1) + ' KB'
+    : (file.size / (1024*1024)).toFixed(1) + ' MB';
+  $('uploadFilename').textContent = name;
+  $('uploadSize').textContent = size;
+  $('uploadStatus').classList.remove('hidden');
+  parseHint.textContent = `${name} loaded`;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    ifcInput.value = e.target.result;
+  };
+  reader.readAsText(file);
+}
+
+// ===== URL Fetch =====
+function fetchFromURL() {
+  const url = urlInput.value.trim();
+  if (!url) { parseHint.textContent = 'Enter a URL first'; return false; }
+  parseHint.textContent = 'Fetching...';
+  parseBtn.disabled = true;
+
+  // Use a CORS proxy if needed, or fetch directly
+  return fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    })
+    .then(text => {
+      ifcInput.value = text;
+      parseHint.textContent = `Fetched (${(text.length/1024).toFixed(0)} KB)`;
+      parseBtn.disabled = false;
+      return true;
+    })
+    .catch(err => {
+      parseHint.textContent = `Error: ${err.message}. Check CORS or URL.`;
+      parseBtn.disabled = false;
+      return false;
+    });
+}
 
 // Init
-parseBtn.addEventListener('click', () => { if (ifcInput.value.trim()) runParse(ifcInput.value); });
-loadSampleBtn.addEventListener('click', () => { ifcInput.value = SAMPLE_IFC; });
+parseBtn.addEventListener('click', async () => {
+  if (currentInputMode === 'url' && !ifcInput.value.trim()) {
+    const ok = await fetchFromURL();
+    if (!ok) return;
+  }
+  if (ifcInput.value.trim()) runParse(ifcInput.value);
+  else parseHint.textContent = 'No IFC data to parse';
+});
+loadSampleBtn.addEventListener('click', () => {
+  // Switch to paste tab and load sample
+  document.querySelector('.input-tab[data-mode="paste"]').click();
+  ifcInput.value = SAMPLE_IFC;
+  parseHint.textContent = 'Sample loaded';
+});
 backBtn.addEventListener('click', () => { vizSection.classList.add('hidden'); inputSection.classList.remove('hidden'); backBtn.classList.add('hidden'); });
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -457,44 +543,181 @@ function renderStats() {
 function renderGuide() {
   $('guideView').innerHTML = `<div class="guide-content">
 <h2>Understanding IFC Data</h2>
-<p>IFC (Industry Foundation Classes) is an open standard (ISO 16739) for describing building and construction data. It enables interoperability between different BIM software.</p>
+<p>IFC (Industry Foundation Classes) is the open international standard (ISO 16739) for Building Information Modeling. It defines a universal language for describing buildings, enabling data exchange across all BIM software platforms — from Revit to ArchiCAD to Tekla.</p>
 
-<h3>📄 STEP File Format</h3>
-<p>IFC files use the STEP physical file format (ISO 10303-21). Each entity is written as:</p>
+<h3>1. STEP File Format</h3>
+<p>IFC files use the STEP physical file format (ISO 10303-21). Every file follows this structure:</p>
+<pre><code>ISO-10303-21;                    -- File start marker
+HEADER;
+  FILE_DESCRIPTION((...));       -- Schema version, view
+  FILE_NAME('model.ifc', ...);   -- Filename, timestamp, author
+  FILE_SCHEMA(('IFC4'));         -- IFC schema version
+ENDSEC;
+DATA;
+  #1= IFCPROJECT('guid', ...);   -- Entities start here
+  #2= IFCSITE('guid', ...);
+  ...
+ENDSEC;
+END-ISO-10303-21;               -- File end marker</code></pre>
+
+<p>Each entity is a single line with this pattern:</p>
 <pre><code>#ID= IFCENTITYTYPE(arg1, arg2, #ref, ...);</code></pre>
-<p><code>#ID</code> is a unique integer. Arguments can be strings (<code>'text'</code>), numbers, enums (<code>.ENUM.</code>), references (<code>#123</code>), lists (<code>(#1,#2)</code>), or null (<code>$</code>).</p>
+<p>Arguments can be: strings <code>'text'</code>, numbers <code>3.14</code>, enums <code>.ELEMENT.</code>, references <code>#123</code>, lists <code>(#1,#2,#3)</code>, or null <code>$</code>.</p>
 
-<h3>🏗️ Spatial Hierarchy</h3>
-<p>IFC organizes buildings in a strict hierarchy:</p>
-<div class="guide-diagram">IfcProject
-  └── IfcSite
-       └── IfcBuilding
-            ├── IfcBuildingStorey (Ground Floor)
-            │    ├── IfcSpace (Room)
-            │    ├── IfcWall
-            │    ├── IfcDoor
-            │    └── IfcWindow
-            └── IfcBuildingStorey (First Floor)
-                 └── ...</div>
+<h3>2. Spatial Hierarchy</h3>
+<p>IFC organizes every building in a strict tree structure. This hierarchy determines how elements are grouped and where they live in the model:</p>
+<div class="guide-diagram">IfcProject                          -- The root: entire project
+  |
+  +-- IfcSite                       -- Physical site / land
+       |
+       +-- IfcBuilding              -- A single building
+            |
+            +-- IfcBuildingStorey    -- Floor level (Ground, 1st, 2nd...)
+            |    |
+            |    +-- IfcSpace       -- Room / zone
+            |    |    |
+            |    |    +-- IfcFurnishingElement
+            |    |
+            |    +-- IfcWall        -- Walls on this floor
+            |    +-- IfcDoor        -- Doors on this floor
+            |    +-- IfcWindow      -- Windows on this floor
+            |    +-- IfcSlab        -- Floor/ceiling slab
+            |    +-- IfcColumn      -- Structural columns
+            |
+            +-- IfcBuildingStorey   -- Another floor
+                 +-- ...</div>
 
-<h3>🔗 Relationships</h3>
-<p>IFC uses <em>objectified relationships</em> — relationships are entities themselves:</p>
-<ul style="color:var(--text-secondary);font-size:14px;line-height:2;padding-left:20px">
-<li><strong>IfcRelAggregates</strong> — Defines parent→child in spatial hierarchy</li>
-<li><strong>IfcRelContainedInSpatialStructure</strong> — Places elements (walls, doors) into storeys/spaces</li>
-<li><strong>IfcRelDefinesByProperties</strong> — Attaches property sets to elements</li>
-<li><strong>IfcRelDefinesByType</strong> — Links elements to their type definitions</li>
-<li><strong>IfcRelAssociatesMaterial</strong> — Assigns materials to elements</li>
-<li><strong>IfcRelVoidsElement</strong> — Creates openings in walls for doors/windows</li>
-</ul>
+<p>The hierarchy is NOT defined by nesting in the file. Instead, <code>IfcRelAggregates</code> relationships explicitly define the parent-child links between spatial elements.</p>
 
-<h3>🧱 Building Elements</h3>
-<p>Physical parts of the building: <code>IfcWall</code>, <code>IfcDoor</code>, <code>IfcWindow</code>, <code>IfcSlab</code>, <code>IfcColumn</code>, <code>IfcBeam</code>, <code>IfcStair</code>, <code>IfcRoof</code>, etc.</p>
+<h3>3. Relationships — The Core Concept</h3>
+<p>IFC uses <em>objectified relationships</em> — meaning relationships themselves are entities with their own IDs and arguments. This is what makes IFC powerful but also complex. Here are the key relationship types:</p>
 
-<h3>📐 Geometry</h3>
-<p>Shape is defined via <code>IfcProductDefinitionShape</code> → <code>IfcShapeRepresentation</code> → geometry primitives like <code>IfcExtrudedAreaSolid</code>. Placement uses <code>IfcLocalPlacement</code> with <code>IfcAxis2Placement3D</code>.</p>
+<div class="guide-table">
+<table>
+<thead><tr><th>Relationship</th><th>What it does</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td><code>IfcRelAggregates</code></td><td>Defines spatial hierarchy (parent contains children)</td><td>Building contains Storeys</td></tr>
+<tr><td><code>IfcRelContainedInSpatialStructure</code></td><td>Places building elements into a storey or space</td><td>Wall is on Ground Floor</td></tr>
+<tr><td><code>IfcRelDefinesByProperties</code></td><td>Attaches property sets to elements</td><td>Wall has FireRating = REI60</td></tr>
+<tr><td><code>IfcRelDefinesByType</code></td><td>Links elements to their type definition</td><td>Wall is a "Brick Wall 200mm"</td></tr>
+<tr><td><code>IfcRelAssociatesMaterial</code></td><td>Assigns materials or material layers</td><td>Wall uses Brick + Concrete layers</td></tr>
+<tr><td><code>IfcRelVoidsElement</code></td><td>Creates openings in elements</td><td>Door opening cuts through Wall</td></tr>
+<tr><td><code>IfcRelFillsElement</code></td><td>Fills an opening with another element</td><td>Door fills the opening</td></tr>
+<tr><td><code>IfcRelConnectsPathElements</code></td><td>Connects walls at junctions</td><td>Wall A meets Wall B at corner</td></tr>
+</tbody>
+</table>
+</div>
 
-<h3>🏷️ Properties & Types</h3>
-<p><code>IfcPropertySet</code> groups <code>IfcPropertySingleValue</code> entries. Type definitions (e.g., <code>IfcWallType</code>) define shared characteristics for multiple instances.</p>
+<p>Visually, a relationship works like this:</p>
+<div class="guide-diagram">IfcRelContainedInSpatialStructure
+  |
+  +-- RelatingStructure: #22 (IfcBuildingStorey "Ground Floor")
+  +-- RelatedElements: (#30, #31, #34, #36)
+       |
+       #30 = IfcWall "North Wall"
+       #31 = IfcWall "South Wall"
+       #34 = IfcDoor "Main Entrance"
+       #36 = IfcWindow "Window W1"</div>
+
+<h3>4. Building Elements</h3>
+<p>These are the physical components that make up a building:</p>
+
+<div class="guide-table">
+<table>
+<thead><tr><th>Category</th><th>Entity Types</th></tr></thead>
+<tbody>
+<tr><td>Structure</td><td><code>IfcWall</code> <code>IfcColumn</code> <code>IfcBeam</code> <code>IfcSlab</code> <code>IfcFooting</code></td></tr>
+<tr><td>Openings</td><td><code>IfcDoor</code> <code>IfcWindow</code> <code>IfcOpeningElement</code></td></tr>
+<tr><td>Vertical</td><td><code>IfcStair</code> <code>IfcRamp</code> <code>IfcRailing</code></td></tr>
+<tr><td>Envelope</td><td><code>IfcRoof</code> <code>IfcCurtainWall</code> <code>IfcCovering</code></td></tr>
+<tr><td>MEP</td><td><code>IfcFlowTerminal</code> <code>IfcFlowSegment</code> <code>IfcDistributionElement</code></td></tr>
+<tr><td>Furniture</td><td><code>IfcFurnishingElement</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5. Properties and Types</h3>
+<p>Properties add metadata to elements. They are grouped in <code>IfcPropertySet</code> containers:</p>
+<div class="guide-diagram">IfcPropertySet "Pset_WallCommon"
+  |
+  +-- IfcPropertySingleValue "IsExternal" = TRUE
+  +-- IfcPropertySingleValue "FireRating" = "REI60"
+  +-- IfcPropertySingleValue "ThermalTransmittance" = 0.24</div>
+
+<p><strong>Type definitions</strong> (e.g., <code>IfcWallType</code>) define shared characteristics. Multiple wall instances can reference the same type, avoiding data duplication:</p>
+<div class="guide-diagram">IfcWallType "Brick Wall 200mm" (#46)
+  |
+  +-- Used by: IfcWall "North Wall" (#30)
+  +-- Used by: IfcWall "South Wall" (#31)
+  +-- Used by: IfcWall "Partition Wall" (#32)
+  +-- Used by: IfcWallStandardCase "East Wall" (#33)</div>
+
+<h3>6. Materials</h3>
+<p>Materials can be simple or layered:</p>
+<div class="guide-diagram">IfcMaterialLayerSet "Wall Layers"
+  |
+  +-- Layer 1: IfcMaterial "Brick"       thickness: 100mm
+  +-- Layer 2: IfcMaterial "Insulation"  thickness: 50mm
+  +-- Layer 3: IfcMaterial "Concrete"    thickness: 150mm</div>
+
+<h3>7. Geometry</h3>
+<p>IFC geometry is defined through representation contexts and shape representations. The typical chain is:</p>
+<pre><code>IfcProduct
+  +-- IfcProductDefinitionShape
+       +-- IfcShapeRepresentation
+            +-- IfcExtrudedAreaSolid     -- Extrude a 2D profile
+            |    +-- IfcRectangleProfileDef  -- Rectangle cross-section
+            |    +-- IfcDirection            -- Extrusion direction
+            |    +-- Depth: 3000mm          -- Extrusion height
+            |
+            +-- IfcBooleanClippingResult -- Boolean cut (for openings)</code></pre>
+
+<p>Placement uses <code>IfcLocalPlacement</code> with <code>IfcAxis2Placement3D</code> to position elements in 3D space relative to their parent.</p>
+
+<h3>8. IFC Schema Versions</h3>
+<div class="guide-table">
+<table>
+<thead><tr><th>Version</th><th>Year</th><th>Key Changes</th></tr></thead>
+<tbody>
+<tr><td><code>IFC2x3</code></td><td>2006</td><td>Most widely supported. Industry workhorse for 15+ years.</td></tr>
+<tr><td><code>IFC4</code></td><td>2013</td><td>ISO standard. Better geometry, tessellation, new MEP entities.</td></tr>
+<tr><td><code>IFC4.3</code></td><td>2024</td><td>Infrastructure support: roads, railways, bridges, tunnels.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>9. Common Patterns in IFC Files</h3>
+<p>When analyzing an IFC file, look for these patterns:</p>
+<pre><code>-- Pattern: Find all walls on a floor
+1. Find IfcBuildingStorey by name (e.g., "Ground Floor")
+2. Find IfcRelContainedInSpatialStructure where
+   RelatingStructure = that storey
+3. Extract RelatedElements list -> these are your walls,
+   doors, windows, etc.
+
+-- Pattern: Find a wall's material
+1. Start with IfcWall (#30)
+2. Find IfcRelAssociatesMaterial where #30 is in RelatedObjects
+3. Follow RelatingMaterial -> IfcMaterialLayerSet
+4. Read each IfcMaterialLayer for thickness + material name
+
+-- Pattern: Find a wall's properties
+1. Start with IfcWall (#30)
+2. Find IfcRelDefinesByProperties where #30 is in RelatedObjects
+3. Follow RelatingPropertyDefinition -> IfcPropertySet
+4. Read each IfcPropertySingleValue for name + value</code></pre>
+
+<h3>10. Reading This Visualizer</h3>
+<p>This tool helps you understand IFC files through three views:</p>
+<div class="guide-table">
+<table>
+<thead><tr><th>View</th><th>What it shows</th><th>Best for</th></tr></thead>
+<tbody>
+<tr><td><strong>Hierarchy Tree</strong></td><td>The spatial containment tree (Project to Site to Building to Storeys to Elements)</td><td>Understanding building organization</td></tr>
+<tr><td><strong>Relationship Graph</strong></td><td>Force-directed graph of entity connections</td><td>Discovering how elements relate to each other</td></tr>
+<tr><td><strong>Statistics</strong></td><td>Entity counts by type and category</td><td>Quick overview of model contents</td></tr>
+</tbody>
+</table>
+</div>
 </div>`;
 }
