@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IFC Relationship Graph</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root{--bg:#f0f4f8;--glass:rgba(255,255,255,0.6);--glass2:rgba(255,255,255,0.82);--border:rgba(200,210,230,0.5);--text:#1e293b;--text2:#475569;--muted:#94a3b8;--accent:#2563eb;--shadow:0 4px 24px rgba(37,99,235,0.08);--blur:blur(18px);--font:'Roboto Mono',monospace}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+    .toolbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--border);box-shadow:var(--shadow);flex-wrap:wrap}
+    .toolbar h1{font-size:14px;font-weight:700;margin-right:auto;letter-spacing:-0.5px}
+    .toolbar a{color:var(--accent);text-decoration:none;font-size:12px;font-weight:600}
+    .toolbar input,.toolbar select{padding:7px 12px;background:var(--glass);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:8px;color:var(--text);font:12px var(--font);outline:none}
+    .toolbar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+    .toolbar .btn{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:var(--glass);backdrop-filter:var(--blur);color:var(--text2);font:500 11px var(--font);cursor:pointer;transition:0.2s}
+    .toolbar .btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--shadow)}
+    .toolbar .btn.active{background:rgba(37,99,235,0.08);border-color:var(--accent);color:var(--accent)}
+    .badge{font-size:10px;color:var(--muted);padding:5px 12px;background:var(--glass);border-radius:20px;border:1px solid var(--border)}
+    .sep{width:1px;height:20px;background:var(--border)}
+    #canvas{position:fixed;top:52px;left:0;right:0;bottom:0}
+    svg{width:100%;height:100%}
+    .graph-link{stroke:rgba(37,99,235,0.1);transition:stroke 0.2s,stroke-opacity 0.2s}
+    .graph-node{cursor:pointer}
+    .graph-node circle{transition:opacity 0.2s}
+    .graph-node:hover circle{filter:brightness(1.1) drop-shadow(0 0 8px currentColor)}
+    .graph-node text{pointer-events:none;opacity:0;transition:opacity 0.15s}
+    .graph-node:hover text{opacity:1}
+    .graph-node.labels-on text{opacity:1}
+    .graph-node.dimmed{opacity:0.06}
+    .graph-link.dimmed{stroke-opacity:0.02!important}
+    #detail{position:fixed;top:62px;right:12px;width:300px;max-height:calc(100vh - 72px);overflow-y:auto;background:var(--glass2);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:16px;padding:18px;font-size:12px;display:none;z-index:50;box-shadow:var(--shadow)}
+    #detail h3{font-size:13px;margin-bottom:4px;font-weight:700}
+    #detail .type-badge{display:inline-block;padding:3px 10px;border-radius:20px;font:600 10px var(--font);margin-bottom:12px}
+    #detail .section{margin-bottom:12px}
+    #detail .section h4{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px}
+    .row{display:flex;justify-content:space-between;padding:3px 0;font-size:11px}
+    .row .k{color:var(--text2)}.row .v{color:var(--text);font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;text-align:right}
+    .ref-link{display:inline-block;padding:2px 7px;background:rgba(37,99,235,0.08);color:var(--accent);border-radius:4px;font:500 10px var(--font);cursor:pointer;margin:2px}
+    .ref-link:hover{background:rgba(37,99,235,0.16)}
+    #legend{position:fixed;bottom:12px;left:12px;background:var(--glass2);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:12px;padding:14px;z-index:50;font-size:10px;box-shadow:var(--shadow)}
+    #legend div{display:flex;align-items:center;gap:7px;padding:2px 0;color:var(--text2)}
+    #legend span{width:10px;height:10px;border-radius:3px;display:inline-block}
+    #help{position:fixed;bottom:12px;right:12px;background:var(--glass2);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:12px;padding:14px 18px;z-index:50;font-size:10px;color:var(--muted);line-height:2;box-shadow:var(--shadow)}
+    #help kbd{background:rgba(37,99,235,0.06);padding:2px 6px;border-radius:4px;font:10px var(--font);color:var(--text2)}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(37,99,235,0.12);border-radius:3px}
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <a href="index.html">&larr; Back</a>
+    <h1>Relationship Graph</h1>
+    <input type="text" id="search" placeholder="Search nodes..." style="width:180px">
+    <div class="sep"></div>
+    <select id="filterCat">
+      <option value="all">All Categories</option>
+      <option value="spatial">Spatial</option>
+      <option value="element">Elements</option>
+      <option value="type">Types</option>
+      <option value="property">Properties</option>
+      <option value="material">Materials</option>
+    </select>
+    <select id="filterStorey"><option value="all">All Storeys</option></select>
+    <div class="sep"></div>
+    <button class="btn" id="toggleLabels">Labels</button>
+    <button class="btn" id="toggleLinkLabels">Link Labels</button>
+    <button class="btn" id="zoomFit">Fit View</button>
+    <span class="badge" id="info">0 nodes</span>
+  </div>
+  <div id="canvas"></div>
+  <div id="detail"></div>
+  <div id="legend">
+    <div><span style="background:#2563eb"></span> Spatial</div>
+    <div><span style="background:#f59e0b"></span> Elements</div>
+    <div><span style="background:#ec4899"></span> Types</div>
+    <div><span style="background:#06b6d4"></span> Properties</div>
+    <div><span style="background:#10b981"></span> Materials</div>
+    <div><span style="background:#94a3b8"></span> Other</div>
+  </div>
+  <div id="help">
+    <div><kbd>Click</kbd> node &rarr; focus &amp; details</div>
+    <div><kbd>Double-click</kbd> &rarr; reset</div>
+    <div><kbd>Drag</kbd> node &rarr; reposition</div>
+    <div><kbd>Scroll</kbd> &rarr; zoom</div>
+  </div>
+  <script src="ifc-parser.js"></script>
+  <script src="ifc-storage.js"></script>
+  <script>
+// Load data from IndexedDB
+document.getElementById('canvas').innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8;font-size:13px">Loading IFC data...</p>';
+loadIFCData().then(data => {
+  if (data) {
+    initGraph(data);
+  } else {
+    document.getElementById('canvas').innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8;font-size:13px">No IFC data found. Go back to the main page and parse your IFC file first.</p>';
+  }
+}).catch(e => {
+  console.error('IndexedDB load error:', e);
+  document.getElementById('canvas').innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8;font-size:13px">Error loading data. Try re-parsing from the main page.</p>';
+});
+
+function initGraph(parsedData) {
+  const entities = parsedData.entities;
+  const graph = buildGraph(entities);
+
+  // Clear container
+  const container = document.getElementById('canvas');
+  container.innerHTML = '';
+
+  if (!graph.nodes.length) { container.innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8">No relationships found.</p>'; return; }
+
+  // Populate storey filter
+  const storeys = new Set();
+  Object.values(entities).forEach(e => {
+    if (e.type.toUpperCase() === 'IFCBUILDINGSTOREY') storeys.add(e.name || `Storey #${e.id}`);
+  });
+  const storeySelect = document.getElementById('filterStorey');
+  storeys.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; storeySelect.appendChild(o); });
+
+  // Build storey->elements map
+  const storeyElements = {};
+  Object.values(entities).forEach(e => {
+    const upper = e.type.toUpperCase();
+    if (upper === 'IFCRELCONTAINEDINSPATIALSTRUCTURE') {
+      const relRef = e.args[5]?.match(/#(\d+)/);
+      if (relRef) {
+        const storeyEnt = entities[parseInt(relRef[1])];
+        if (storeyEnt) {
+          const sName = storeyEnt.name || `Storey #${storeyEnt.id}`;
+          if (!storeyElements[sName]) storeyElements[sName] = new Set();
+          const elRefs = [...(e.args[4]||'').matchAll(/#(\d+)/g)].map(m => parseInt(m[1]));
+          elRefs.forEach(id => storeyElements[sName].add(id));
+          storeyElements[sName].add(storeyEnt.id);
+        }
+      }
+    }
+  });
+
+  // Degree for sizing
+  const degreeMap = {};
+  graph.links.forEach(l => { degreeMap[l.source] = (degreeMap[l.source]||0)+1; degreeMap[l.target] = (degreeMap[l.target]||0)+1; });
+  graph.nodes.forEach(n => n.degree = degreeMap[n.id] || 0);
+
+  // Adaptive spacing based on node count
+  const N = graph.nodes.length;
+  const isLarge = N > 80;
+
+  const w = container.clientWidth, h = container.clientHeight;
+
+  const svg = d3.select(container).append('svg').attr('width', w).attr('height', h);
+  const g = svg.append('g');
+
+  svg.append('defs').append('marker').attr('id','arrow').attr('viewBox','0 -5 10 10')
+    .attr('refX',22).attr('refY',0).attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+    .append('path').attr('d','M0,-4L10,0L0,4').attr('fill','rgba(37,99,235,0.2)');
+
+  const zoom = d3.zoom().scaleExtent([0.03, 6]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  const nodeRadius = d => {
+    if (d.category === 'spatial') return Math.min(28, 12 + d.degree * 1.2);
+    if (d.category === 'element') return Math.min(14, 6 + d.degree * 0.4);
+    return Math.min(10, 5 + d.degree * 0.3);
+  };
+
+  const link = g.selectAll('.graph-link').data(graph.links).join('line')
+    .attr('class','graph-link').attr('stroke','rgba(37,99,235,0.12)').attr('stroke-opacity',0.3)
+    .attr('stroke-width',1).attr('marker-end','url(#arrow)');
+
+  let showLinkLabels = false;
+  const linkLabel = g.selectAll('.link-label').data(graph.links).join('text')
+    .attr('class','link-label').attr('text-anchor','middle').attr('dy',-3)
+    .text(d => d.label||'').style('font','9px Roboto Mono,monospace').style('fill','#94a3b8')
+    .style('pointer-events','none').style('display','none');
+
+  const node = g.selectAll('.graph-node').data(graph.nodes).join('g').attr('class','graph-node')
+    .on('click', (ev, d) => { ev.stopPropagation(); focusNode(d); showDetail(d); })
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+
+  node.append('circle').attr('r', nodeRadius)
+    .attr('fill',d=>d.color).attr('fill-opacity',0.85)
+    .attr('stroke',d=>d.color).attr('stroke-width',2).attr('stroke-opacity',0.4);
+
+  // Labels hidden by default — visible on hover via CSS
+  let showNodeLabels = false;
+  const nodeText = node.append('text').attr('dy','0.35em')
+    .attr('x',d=>nodeRadius(d)+5)
+    .text(d=>{ const l=d.label||d.type; return l.length>18?l.slice(0,16)+'..':l; })
+    .style('font','10px Roboto Mono,monospace').style('fill','#475569');
+
+  // Adaptive force parameters — spread out more for large graphs
+  const chargeStrength = isLarge ? -800 : -400;
+  const linkDist = isLarge ? 180 : 100;
+  const collisionPad = isLarge ? 25 : 12;
+
+  const sim = d3.forceSimulation(graph.nodes)
+    .force('link', d3.forceLink(graph.links).id(d=>d.id).distance(linkDist).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(chargeStrength).distanceMax(800))
+    .force('center', d3.forceCenter(w/2, h/2))
+    .force('collision', d3.forceCollide(d=>nodeRadius(d)+collisionPad))
+    .force('x', d3.forceX(w/2).strength(0.02))
+    .force('y', d3.forceY(h/2).strength(0.02))
+    .alphaDecay(0.012).velocityDecay(0.35);
+
+  sim.on('tick', () => {
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    linkLabel.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
+    node.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+
+  document.getElementById('info').textContent = `${graph.nodes.length} nodes · ${graph.links.length} links`;
+
+  // Focus on a single node
+  function focusNode(d) {
+    const connected = new Set([d.id]);
+    graph.links.forEach(l => {
+      const s = typeof l.source==='object'?l.source.id:l.source;
+      const t = typeof l.target==='object'?l.target.id:l.target;
+      if(s===d.id) connected.add(t);
+      if(t===d.id) connected.add(s);
+    });
+    node.classed('dimmed', n => !connected.has(n.id));
+    link.classed('dimmed', l => {
+      const s=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      return s!==d.id && t!==d.id;
+    });
+    link.filter(l => {
+      const s=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      return s===d.id || t===d.id;
+    }).attr('stroke',d.color).attr('stroke-opacity',0.8).attr('stroke-width',2);
+    // Show labels for focused node + neighbors
+    node.classed('labels-on', n => connected.has(n.id));
+    linkLabel.style('display', l => {
+      const s=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      return (s===d.id||t===d.id)?'block':'none';
+    });
+  }
+
+  function resetFocus() {
+    node.classed('dimmed', false).classed('labels-on', showNodeLabels);
+    link.classed('dimmed', false).attr('stroke','rgba(37,99,235,0.12)').attr('stroke-opacity',0.3).attr('stroke-width',1);
+    linkLabel.style('display', showLinkLabels ? 'block' : 'none');
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  svg.on('dblclick.reset', () => resetFocus());
+  svg.on('click', (ev) => { if(ev.target === svg.node()) resetFocus(); });
+
+  // Search
+  document.getElementById('search').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    if (!q) { resetFocus(); return; }
+    node.classed('dimmed', d => {
+      const label = ((d.label||'') + ' ' + d.type + ' #' + d.id).toLowerCase();
+      return !label.includes(q);
+    });
+  });
+
+  // Category filter
+  document.getElementById('filterCat').addEventListener('change', function() {
+    const cat = this.value;
+    if (cat === 'all') { resetFocus(); return; }
+    node.classed('dimmed', d => d.category !== cat);
+    link.classed('dimmed', l => {
+      const sn = graph.nodes.find(n=>n.id===(typeof l.source==='object'?l.source.id:l.source));
+      const tn = graph.nodes.find(n=>n.id===(typeof l.target==='object'?l.target.id:l.target));
+      return (!sn || sn.category!==cat) && (!tn || tn.category!==cat);
+    });
+  });
+
+  // Storey filter
+  document.getElementById('filterStorey').addEventListener('change', function() {
+    const s = this.value;
+    if (s === 'all') { resetFocus(); return; }
+    const ids = storeyElements[s] || new Set();
+    node.classed('dimmed', d => !ids.has(d.id));
+    link.classed('dimmed', () => true);
+  });
+
+  // Toggle labels
+  document.getElementById('toggleLabels').addEventListener('click', function() {
+    showNodeLabels = !showNodeLabels;
+    node.classed('labels-on', showNodeLabels);
+    this.classList.toggle('active', showNodeLabels);
+  });
+  document.getElementById('toggleLinkLabels').addEventListener('click', function() {
+    showLinkLabels = !showLinkLabels;
+    linkLabel.style('display', showLinkLabels ? 'block' : 'none');
+    this.classList.toggle('active', showLinkLabels);
+  });
+
+  // Zoom fit
+  document.getElementById('zoomFit').addEventListener('click', () => {
+    const bounds = g.node().getBBox();
+    if (!bounds.width) return;
+    const scale = Math.min(w/(bounds.width+100), h/(bounds.height+80))*0.85;
+    const tx = w/2-(bounds.x+bounds.width/2)*scale;
+    const ty = h/2-(bounds.y+bounds.height/2)*scale;
+    svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+  });
+
+  setTimeout(() => document.getElementById('zoomFit').click(), 2500);
+
+  function showDetail(d) {
+    const panel = document.getElementById('detail');
+    const e = entities[d.id];
+    if (!e) return;
+    const neighbors = [];
+    graph.links.forEach(l => {
+      const s=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      if(s===d.id && entities[t]) neighbors.push({id:t, rel:l.label, dir:'→'});
+      if(t===d.id && entities[s]) neighbors.push({id:s, rel:l.label, dir:'←'});
+    });
+    panel.innerHTML = `
+      <h3>#${e.id} ${e.name||''}</h3>
+      <div class="type-badge" style="background:${e.color}22;color:${e.color};border:1px solid ${e.color}44">${e.type}</div>
+      <div class="section"><h4>Category</h4><p style="color:var(--text2)">${e.category}</p></div>
+      <div class="section"><h4>Connected (${neighbors.length})</h4>
+        ${neighbors.map(n=>`<div class="row"><span class="k">${n.dir} ${n.rel}</span><span class="ref-link" onclick="document.getElementById('search').value='#${n.id}';document.getElementById('search').dispatchEvent(new Event('input'))">#${n.id} ${entities[n.id]?.type||''}</span></div>`).join('')}
+      </div>
+      <div class="section"><h4>Arguments (${e.args.length})</h4>
+        ${e.args.slice(0,8).map((a,i)=>`<div class="row"><span class="k">arg[${i}]</span><span class="v" title="${a}">${a.length>30?a.slice(0,27)+'…':a}</span></div>`).join('')}
+        ${e.args.length>8?`<div style="color:var(--muted);font-size:11px;padding-top:4px">+${e.args.length-8} more...</div>`:''}
+      </div>
+    `;
+    panel.style.display = 'block';
+  }
+}
+  </script>
+</body>
+</html>

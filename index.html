@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IFC Data Visualizer — Explore Building Models</title>
+  <meta name="description" content="Paste IFC (Industry Foundation Classes) data and visualize the spatial hierarchy, entity relationships, and structure as interactive trees and graphs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="ifc-storage.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="logo-icon">IFC</div>
+        <div>
+          <h1>IFC Data Visualizer</h1>
+          <p class="header-sub">Explore Building Information Models Visually</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="backToInput" class="btn-ghost hidden" title="Paste New Data">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12l-4-4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          New Data
+        </button>
+      </div>
+    </header>
+
+    <!-- Input Section -->
+    <section id="inputSection" class="input-section">
+      <div class="input-hero">
+        <h2>Paste Your IFC Data</h2>
+        <p>Drop your IFC/STEP file content below to explore the spatial hierarchy, entity relationships, and structure of your building model.</p>
+      </div>
+      <div class="input-area">
+        <textarea id="ifcInput" placeholder="ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION((...));
+...
+DATA;
+#1= IFCPROJECT('guid',...);
+#2= IFCSITE('guid',...);
+...
+ENDSEC;
+END-ISO-10303-21;" spellcheck="false"></textarea>
+        <div class="input-footer">
+          <button id="loadSampleBtn" class="btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Load Sample IFC
+          </button>
+          <button id="parseBtn" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M10 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Parse & Visualize
+          </button>
+        </div>
+      </div>
+      <div class="ifc-primer">
+        <h3>What is IFC?</h3>
+        <div class="primer-grid">
+          <div class="primer-card">
+            <div class="primer-icon" style="background:linear-gradient(135deg,#2563eb,#3b82f6)">ISO</div>
+            <h4>Industry Foundation Classes</h4>
+            <p>IFC is an open, international standard (ISO 16739) for sharing BIM data across software platforms.</p>
+          </div>
+          <div class="primer-card">
+            <div class="primer-icon" style="background:linear-gradient(135deg,#06b6d4,#0891b2)">SH</div>
+            <h4>Spatial Hierarchy</h4>
+            <p>Buildings are organized as: Project &rarr; Site &rarr; Building &rarr; Storey &rarr; Space &rarr; Elements</p>
+          </div>
+          <div class="primer-card">
+            <div class="primer-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">REL</div>
+            <h4>Entity Relationships</h4>
+            <p>Entities reference each other via IDs (#123). Relationships like IfcRelAggregates define containment.</p>
+          </div>
+          <div class="primer-card">
+            <div class="primer-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">STP</div>
+            <h4>STEP Format</h4>
+            <p>IFC uses ISO 10303 STEP encoding. Each line defines an entity: <code>#id= IFCTYPE(args);</code></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visualization Section -->
+    <section id="vizSection" class="viz-section hidden">
+      <!-- Stats Bar -->
+      <div id="statsBar" class="stats-bar">
+        <div class="stat-chip" id="statEntities"><span class="stat-value">0</span><span class="stat-label">Entities</span></div>
+        <div class="stat-chip" id="statTypes"><span class="stat-value">0</span><span class="stat-label">Unique Types</span></div>
+        <div class="stat-chip" id="statRelationships"><span class="stat-value">0</span><span class="stat-label">Relationships</span></div>
+        <div class="stat-chip" id="statSpatial"><span class="stat-value">0</span><span class="stat-label">Spatial Elements</span></div>
+        <div class="stat-chip" id="statBuilding"><span class="stat-value">0</span><span class="stat-label">Building Elements</span></div>
+      </div>
+
+      <!-- Main Layout -->
+      <div class="viz-layout">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+          <div class="sidebar-section">
+            <h3>Entity Explorer</h3>
+            <input type="text" id="entitySearch" class="search-input" placeholder="Search entities...">
+            <select id="categoryFilter" class="filter-select">
+              <option value="all">All Categories</option>
+              <option value="spatial">Spatial Structure</option>
+              <option value="element">Building Elements</option>
+              <option value="relationship">Relationships</option>
+              <option value="property">Properties</option>
+              <option value="type">Type Definitions</option>
+              <option value="geometry">Geometry</option>
+              <option value="other">Other</option>
+            </select>
+            <div id="entityList" class="entity-list"></div>
+          </div>
+          <div class="sidebar-section legend-section">
+            <h3>Legend</h3>
+            <div id="legend" class="legend"></div>
+          </div>
+        </aside>
+
+        <!-- Main View -->
+        <main class="main-view">
+          <div class="view-tabs">
+            <button class="tab-btn" data-view="tree" id="tabTree">
+              Hierarchy Tree &nearr;
+            </button>
+            <button class="tab-btn" data-view="graph" id="tabGraph">
+              Relationship Graph &nearr;
+            </button>
+            <button class="tab-btn active" data-view="stats" id="tabStats">
+              Statistics
+            </button>
+            <button class="tab-btn" data-view="guide" id="tabGuide">
+              IFC Guide
+            </button>
+          </div>
+          <div id="viewContainer" class="view-container">
+            <div id="statsView" class="view-panel active"></div>
+            <div id="guideView" class="view-panel"></div>
+          </div>
+        </main>
+
+        <!-- Detail Panel -->
+        <aside id="detailPanel" class="detail-panel">
+          <div class="detail-placeholder">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.3"/><path d="M24 16v8M24 28v2" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"/></svg>
+            <p>Click on any entity to see its details</p>
+          </div>
+          <div id="detailContent" class="detail-content hidden"></div>
+        </aside>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="ifc-parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

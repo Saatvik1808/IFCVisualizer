@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IFC Hierarchy Tree</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root{--bg:#f0f4f8;--glass:rgba(255,255,255,0.6);--glass2:rgba(255,255,255,0.82);--border:rgba(200,210,230,0.5);--text:#1e293b;--text2:#475569;--muted:#94a3b8;--accent:#2563eb;--shadow:0 4px 24px rgba(37,99,235,0.08);--blur:blur(18px);--font:'Roboto Mono',monospace}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+    .toolbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+    .toolbar h1{font-size:14px;font-weight:700;margin-right:auto;letter-spacing:-0.5px}
+    .toolbar a{color:var(--accent);text-decoration:none;font-size:12px;font-weight:600}
+    .toolbar input,.toolbar select{padding:7px 12px;background:var(--glass);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:8px;color:var(--text);font:12px var(--font);outline:none}
+    .toolbar input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+    .toolbar .btn{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:var(--glass);backdrop-filter:var(--blur);color:var(--text2);font:500 11px var(--font);cursor:pointer;transition:0.2s}
+    .toolbar .btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--shadow)}
+    .toolbar .badge{font-size:10px;color:var(--muted);padding:5px 12px;background:var(--glass);border-radius:20px;border:1px solid var(--border)}
+    #canvas{position:fixed;top:52px;left:0;right:0;bottom:0}
+    svg{width:100%;height:100%}
+    .link{fill:none;stroke:rgba(37,99,235,0.12);stroke-width:1.5}
+    .node{cursor:pointer}
+    .node circle{stroke-width:2.5;transition:filter 0.15s}
+    .node:hover circle{filter:brightness(1.1) drop-shadow(0 0 8px currentColor)}
+    .node text{font:11px var(--font);fill:var(--text2)}
+    .node.collapsed circle{stroke-dasharray:3 2}
+    .node.search-match circle{filter:drop-shadow(0 0 10px var(--accent)) brightness(1.2)}
+    .node.search-match text{fill:var(--accent);font-weight:600}
+    .node.dimmed{opacity:0.12}
+    #detail{position:fixed;top:62px;right:12px;width:300px;max-height:calc(100vh - 72px);overflow-y:auto;background:var(--glass2);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:16px;padding:18px;font-size:12px;display:none;z-index:50;box-shadow:var(--shadow)}
+    #detail h3{font-size:13px;margin-bottom:4px;font-weight:700}
+    #detail .badge{display:inline-block;padding:3px 10px;border-radius:20px;font:600 10px var(--font);margin-bottom:12px}
+    #detail .section{margin-bottom:12px}
+    #detail .section h4{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px}
+    #detail .row{display:flex;justify-content:space-between;padding:3px 0;font-size:11px}
+    .row .k{color:var(--text2)}.row .v{color:var(--text);font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;text-align:right}
+    .ref-link{display:inline-block;padding:2px 7px;background:rgba(37,99,235,0.08);color:var(--accent);border-radius:4px;font:500 10px var(--font);cursor:pointer;margin:2px}
+    .ref-link:hover{background:rgba(37,99,235,0.16)}
+    #legend{position:fixed;bottom:12px;left:12px;background:var(--glass2);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:12px;padding:14px;z-index:50;font-size:10px;box-shadow:var(--shadow)}
+    #legend div{display:flex;align-items:center;gap:7px;padding:2px 0;color:var(--text2)}
+    #legend span{width:10px;height:10px;border-radius:3px;display:inline-block}
+    #help{position:fixed;bottom:12px;right:12px;background:var(--glass2);backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:12px;padding:14px 18px;z-index:50;font-size:10px;color:var(--muted);line-height:2;box-shadow:var(--shadow)}
+    #help kbd{background:rgba(37,99,235,0.06);padding:2px 6px;border-radius:4px;font:10px var(--font);color:var(--text2)}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(37,99,235,0.12);border-radius:3px}
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <a href="index.html">&larr; Back</a>
+    <h1>Spatial Hierarchy</h1>
+    <input type="text" id="search" placeholder="Search nodes..." style="width:200px">
+    <select id="filterCat">
+      <option value="all">All Categories</option>
+      <option value="spatial">Spatial Only</option>
+      <option value="element">Elements Only</option>
+    </select>
+    <button class="btn" id="expandAll">Expand All</button>
+    <button class="btn" id="collapseAll">Collapse to Storeys</button>
+    <button class="btn" id="zoomFit">Fit View</button>
+    <span class="badge" id="nodeCount">0 nodes</span>
+  </div>
+  <div id="canvas"></div>
+  <div id="detail"></div>
+  <div id="legend">
+    <div><span style="background:#2563eb"></span> Spatial Structure</div>
+    <div><span style="background:#f59e0b"></span> Building Elements</div>
+    <div><span style="background:#ec4899"></span> Type Definitions</div>
+    <div><span style="background:#06b6d4"></span> Properties</div>
+    <div><span style="background:#f97316"></span> Geometry</div>
+    <div><span style="background:#10b981"></span> Materials</div>
+    <div><span style="background:#94a3b8"></span> Other</div>
+  </div>
+  <div id="help">
+    <div><kbd>Click</kbd> node &rarr; expand / collapse</div>
+    <div><kbd>Scroll</kbd> &rarr; zoom in / out</div>
+    <div><kbd>Drag</kbd> background &rarr; pan</div>
+    <div><kbd>Search</kbd> &rarr; highlights matches</div>
+  </div>
+  <script src="ifc-parser.js"></script>
+  <script src="ifc-storage.js"></script>
+  <script>
+const CAT_COLORS_MAP = { spatial:'#2563eb', element:'#f59e0b', relationship:'#8b5cf6', property:'#06b6d4', type:'#ec4899', geometry:'#f97316', material:'#10b981', other:'#94a3b8' };
+
+// Load data from IndexedDB
+document.getElementById('canvas').innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8;font-size:13px">Loading IFC data...</p>';
+loadIFCData().then(data => {
+  if (data) {
+    initTree(data);
+  } else {
+    document.getElementById('canvas').innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8;font-size:13px">No IFC data found. Go back to the main page and parse your IFC file first.</p>';
+  }
+}).catch(e => {
+  console.error('IndexedDB load error:', e);
+  document.getElementById('canvas').innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8;font-size:13px">Error loading data. Try re-parsing from the main page.</p>';
+});
+
+function initTree(parsedData) {
+  const entities = parsedData.entities;
+  const hierarchy = buildHierarchy(entities);
+
+  // Clear container
+  const container = document.getElementById('canvas');
+  container.innerHTML = '';
+
+  if (!hierarchy) { container.innerHTML = '<p style="padding:80px;text-align:center;color:#94a3b8">No spatial hierarchy found.</p>'; return; }
+
+  const margin = { top: 40, right: 280, bottom: 40, left: 120 };
+
+  const svg = d3.select(container).append('svg');
+  const g = svg.append('g');
+
+  const zoom = d3.zoom().scaleExtent([0.05, 5]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  const root = d3.hierarchy(hierarchy);
+  root.x0 = 0; root.y0 = 0;
+
+  // For large hierarchies, collapse deeper to avoid overwhelming the view
+  const totalNodes = root.descendants().length;
+  const collapseDepth = totalNodes > 100 ? 2 : 3;
+  root.each(d => {
+    if (d.depth >= collapseDepth && d.children) { d._children = d.children; d.children = null; }
+  });
+
+  const nodeSpacing = 32;
+  const depthSpacing = 300;
+
+  function update(source) {
+    const nodes = root.descendants();
+    const links = root.links();
+
+    // Compute layout - count visible leaves for vertical spacing
+    let idx = 0;
+    root.eachBefore(d => { d.x = idx * nodeSpacing; idx++; });
+    root.eachBefore(d => { d.y = d.depth * depthSpacing; });
+
+    document.getElementById('nodeCount').textContent = `${nodes.length} nodes visible`;
+
+    const treeLayout = d3.tree().nodeSize([nodeSpacing, depthSpacing]);
+    treeLayout(root);
+
+    // Links
+    const link = g.selectAll('.link').data(links, d => d.target.data.id);
+    link.enter().append('path').attr('class', 'link')
+      .attr('d', () => { const o = {x: source.x0||0, y: source.y0||0}; return diagonal({source:o, target:o}); })
+      .merge(link)
+      .transition().duration(400)
+      .attr('d', d => diagonal(d));
+    link.exit().transition().duration(200).attr('d', () => { const o = {x:source.x, y:source.y}; return diagonal({source:o,target:o}); }).remove();
+
+    // Nodes
+    const node = g.selectAll('.node').data(nodes, d => d.data.id);
+
+    const nodeEnter = node.enter().append('g').attr('class', 'node')
+      .attr('transform', () => `translate(${source.y0||0},${source.x0||0})`)
+      .on('click', (ev, d) => { ev.stopPropagation(); toggle(d); update(d); })
+      .on('contextmenu', (ev, d) => { ev.preventDefault(); showDetail(d.data, entities); });
+
+    nodeEnter.append('circle')
+      .attr('r', 0)
+      .attr('fill', d => d.data.color || '#8892a4')
+      .attr('stroke', d => d.data.color || '#8892a4');
+
+    nodeEnter.append('text')
+      .attr('dy', '0.35em')
+      .attr('x', d => (d.children || d._children) ? -14 : 14)
+      .attr('text-anchor', d => (d.children || d._children) ? 'end' : 'start')
+      .text(d => {
+        const label = d.data.name || d.data.type;
+        const short = label.length > 30 ? label.slice(0, 28) + '..' : label;
+        return `${short} [${d.data.type.length > 20 ? d.data.type.slice(0,18)+'..' : d.data.type}]`;
+      })
+      .style('font', '10px Roboto Mono, monospace');
+
+    // Children count badge
+    nodeEnter.filter(d => d._children).append('text')
+      .attr('class', 'child-count')
+      .attr('dy', '0.35em').attr('x', 14)
+      .attr('text-anchor', 'start')
+      .style('font', '10px Roboto Mono, monospace')
+      .style('fill', '#94a3b8')
+      .text(d => d._children ? `+${d._children.length}` : '');
+
+    const nodeUpdate = nodeEnter.merge(node);
+    nodeUpdate.transition().duration(400)
+      .attr('transform', d => `translate(${d.y},${d.x})`);
+    nodeUpdate.select('circle').transition().duration(300)
+      .attr('r', d => {
+        if (d.data.category === 'spatial') return d._children ? 9 : 7;
+        return d._children ? 6 : 5;
+      })
+      .attr('fill-opacity', d => d._children ? 0.15 : (d.children ? 0.3 : 0.85));
+    nodeUpdate.classed('collapsed', d => !!d._children);
+
+    // Update text position based on children
+    nodeUpdate.select('text').attr('x', d => (d.children || d._children) ? -14 : 14)
+      .attr('text-anchor', d => (d.children || d._children) ? 'end' : 'start');
+
+    // Update child count
+    nodeUpdate.select('.child-count').text(d => d._children ? `+${d._children.length}` : '');
+
+    node.exit().transition().duration(200)
+      .attr('transform', () => `translate(${source.y},${source.x})`)
+      .remove().select('circle').attr('r', 0);
+
+    nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+  }
+
+  function diagonal(d) {
+    return `M${d.source.y},${d.source.x} C${(d.source.y+d.target.y)/2},${d.source.x} ${(d.source.y+d.target.y)/2},${d.target.x} ${d.target.y},${d.target.x}`;
+  }
+
+  function toggle(d) {
+    if (d.children) { d._children = d.children; d.children = null; }
+    else if (d._children) { d.children = d._children; d._children = null; }
+  }
+
+  update(root);
+
+  // Zoom to fit after initial render
+  setTimeout(() => zoomToFit(), 300);
+
+  function zoomToFit() {
+    const bounds = g.node().getBBox();
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (!bounds.width || !bounds.height) return;
+    const scale = Math.min(w / (bounds.width + 100), h / (bounds.height + 80)) * 0.9;
+    const tx = w/2 - (bounds.x + bounds.width/2) * scale;
+    const ty = h/2 - (bounds.y + bounds.height/2) * scale;
+    svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+  }
+
+  // Search
+  document.getElementById('search').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    g.selectAll('.node').each(function(d) {
+      const label = ((d.data.name || '') + ' ' + d.data.type).toLowerCase();
+      const match = q && label.includes(q);
+      d3.select(this).classed('search-match', match).classed('dimmed', q && !match);
+    });
+    if (!q) g.selectAll('.node').classed('dimmed', false).classed('search-match', false);
+  });
+
+  // Expand all
+  document.getElementById('expandAll').addEventListener('click', () => {
+    root.each(d => { if (d._children) { d.children = d._children; d._children = null; } });
+    update(root);
+    setTimeout(() => zoomToFit(), 500);
+  });
+
+  // Collapse to storeys
+  document.getElementById('collapseAll').addEventListener('click', () => {
+    root.each(d => {
+      if (d.depth >= collapseDepth && d.children) { d._children = d.children; d.children = null; }
+    });
+    update(root);
+    setTimeout(() => zoomToFit(), 500);
+  });
+
+  // Filter by category
+  document.getElementById('filterCat').addEventListener('change', function() {
+    const cat = this.value;
+    g.selectAll('.node').each(function(d) {
+      if (cat === 'all') { d3.select(this).classed('dimmed', false); return; }
+      const match = d.data.category === cat || d.data.category === 'spatial';
+      d3.select(this).classed('dimmed', !match);
+    });
+  });
+
+  // Zoom fit button
+  document.getElementById('zoomFit').addEventListener('click', () => zoomToFit());
+
+  // Detail panel on click
+  svg.on('click', () => { document.getElementById('detail').style.display = 'none'; });
+
+  function showDetail(data, entities) {
+    const panel = document.getElementById('detail');
+    const e = entities[data.id];
+    if (!e) return;
+    const args = e.args.map((a, i) => `<div class="row"><span class="k">arg[${i}]</span><span class="v" title="${a}">${a.length>35?a.slice(0,32)+'…':a}</span></div>`).join('');
+    const refs = e.refs.slice(0, 15).map(r => {
+      const re = entities[r];
+      return `<span class="ref-link" onclick="document.getElementById('search').value='#${r}';document.getElementById('search').dispatchEvent(new Event('input'))">#${r} ${re?re.type:''}</span>`;
+    }).join(' ');
+    panel.innerHTML = `
+      <h3>#${e.id} ${e.name || ''}</h3>
+      <div class="badge" style="background:${e.color}22;color:${e.color};border:1px solid ${e.color}44">${e.type}</div>
+      <div class="section"><h4>Category</h4><p style="color:var(--text2)">${e.category}</p></div>
+      <div class="section"><h4>Arguments (${e.args.length})</h4>${args}</div>
+      ${refs ? `<div class="section"><h4>References</h4><div style="display:flex;flex-wrap:wrap;gap:3px">${refs}</div></div>` : ''}
+    `;
+    panel.style.display = 'block';
+  }
+}
+  </script>
+</body>
+</html>
