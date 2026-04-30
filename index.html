@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IFC Data Visualizer — Structural BIM Analysis</title>
-  <meta name="description" content="Parse and visualize IFC (Industry Foundation Classes) data. Explore spatial hierarchies, entity relationships, and building structure through interactive graphs and trees.">
+  <title>IFC Data Visualizer — Structural BIM Analysis Platform</title>
+  <meta name="description" content="Enterprise-grade IFC parser and visualizer. Explore spatial hierarchies, entity relationships, and building structure through interactive trees and force-directed graphs.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="ifc-storage.js"></script>
   <link rel="stylesheet" href="styles.css">
@@ -15,151 +15,232 @@
 <body>
   <div class="app" id="app">
 
-    <!-- Header -->
-    <header class="header">
-      <div class="header-brand">
-        <div class="logo-icon">IFC</div>
-        <div>
-          <h1>IFC Data Visualizer</h1>
-          <p class="header-sub">Structural BIM Analysis Tool</p>
+    <!-- ===== Header / Navbar ===== -->
+    <header class="header" id="header">
+      <div class="header-inner">
+        <div class="header-brand">
+          <div class="logo-mark">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 7l9 4 9-4M12 11v10" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="logo-text">IFC Visualizer</span>
+          <span class="logo-version">v1.0</span>
         </div>
-      </div>
-      <div class="header-actions">
-        <button id="backToInput" class="btn-ghost hidden" title="Paste New Data">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12l-4-4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          New Data
-        </button>
+        <nav class="header-nav">
+          <a href="#" class="nav-link active" data-nav="home">Platform</a>
+          <a href="#" class="nav-link" data-nav="docs">Documentation</a>
+          <a href="#" class="nav-link" data-nav="standards">IFC Standards</a>
+          <a href="https://github.com/Saatvik1808/IFCVisualizer" target="_blank" class="nav-link nav-link-icon" title="GitHub">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+        </nav>
+        <div class="header-actions">
+          <button id="backToInput" class="btn-back hidden">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 12l-4-4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            New Data
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- Input Section -->
+    <!-- ===== Input Section ===== -->
     <section id="inputSection" class="input-section">
-      <div class="input-container">
+      <div class="input-layout">
 
-        <!-- Left: Branding + Info -->
-        <div class="input-sidebar">
-          <div class="input-brand">
-            <div class="brand-badge">IFC</div>
+        <!-- Left Panel: Context + Quick Actions -->
+        <aside class="input-aside">
+          <!-- Brand Card -->
+          <div class="aside-card aside-brand">
+            <div class="aside-brand-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 7l9 4 9-4M12 11v10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            </div>
             <div>
-              <h2>IFC Visualizer</h2>
-              <p class="brand-tagline">v1.0 &middot; Open Source</p>
-            </div>
-          </div>
-          <p class="brand-desc">Parse and visualize Industry Foundation Classes data. Explore spatial hierarchies, entity relationships, and building structure through interactive graphs and trees.</p>
-
-          <div class="input-features">
-            <div class="feature-item">
-              <span class="feature-dot" style="background:#2563eb"></span>
-              <span>Spatial Hierarchy Viewer</span>
-            </div>
-            <div class="feature-item">
-              <span class="feature-dot" style="background:#8b5cf6"></span>
-              <span>Relationship Graph Explorer</span>
-            </div>
-            <div class="feature-item">
-              <span class="feature-dot" style="background:#f59e0b"></span>
-              <span>Entity Statistics Dashboard</span>
-            </div>
-            <div class="feature-item">
-              <span class="feature-dot" style="background:#10b981"></span>
-              <span>IFC Standard Reference Guide</span>
+              <h2 class="aside-title">IFC Data Visualizer</h2>
+              <p class="aside-subtitle">Structural BIM Analysis Platform</p>
             </div>
           </div>
 
-          <div class="input-meta">
-            <div class="meta-item">
-              <span class="meta-label">Format</span>
-              <span class="meta-value">ISO 10303-21 / STEP</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Schema</span>
-              <span class="meta-value">IFC2x3, IFC4, IFC4x3</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Processing</span>
-              <span class="meta-value">Client-side (no upload)</span>
+          <!-- Workflow Steps -->
+          <div class="aside-card">
+            <h3 class="aside-heading">Workflow</h3>
+            <div class="workflow-steps">
+              <div class="workflow-step active">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                  <span class="step-title">Load IFC Data</span>
+                  <span class="step-desc">Paste, upload, or fetch from URL</span>
+                </div>
+              </div>
+              <div class="workflow-step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                  <span class="step-title">Parse Entities</span>
+                  <span class="step-desc">Extract structure and relationships</span>
+                </div>
+              </div>
+              <div class="workflow-step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                  <span class="step-title">Visualize</span>
+                  <span class="step-desc">Explore hierarchy, graph, and stats</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Right: Input Methods -->
-        <div class="input-main">
-          <div class="input-tabs">
-            <button class="input-tab active" data-mode="paste">Paste IFC</button>
-            <button class="input-tab" data-mode="file">Upload File</button>
-            <button class="input-tab" data-mode="url">Load from URL</button>
+          <!-- Capabilities -->
+          <div class="aside-card">
+            <h3 class="aside-heading">Capabilities</h3>
+            <div class="capability-grid">
+              <div class="capability-item">
+                <div class="cap-icon" style="--cap-color:#2563eb">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </div>
+                <span>Hierarchy Tree</span>
+              </div>
+              <div class="capability-item">
+                <div class="cap-icon" style="--cap-color:#8b5cf6">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="4" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 5l4 6M6 4h4" stroke="currentColor" stroke-width="1.2"/></svg>
+                </div>
+                <span>Relationship Graph</span>
+              </div>
+              <div class="capability-item">
+                <div class="cap-icon" style="--cap-color:#f59e0b">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="6" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="6.5" y="3" width="3" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="12" y="1" width="3" height="14" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+                </div>
+                <span>Statistics</span>
+              </div>
+              <div class="capability-item">
+                <div class="cap-icon" style="--cap-color:#10b981">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 7h8M2 11h10M2 15h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </div>
+                <span>Entity Explorer</span>
+              </div>
+            </div>
           </div>
 
-          <!-- Paste Mode -->
-          <div class="input-mode active" id="mode-paste">
-            <textarea id="ifcInput" placeholder="ISO-10303-21;
+          <!-- Schema Support -->
+          <div class="aside-card aside-meta">
+            <h3 class="aside-heading">Supported Schemas</h3>
+            <div class="schema-badges">
+              <span class="schema-badge">IFC2x3</span>
+              <span class="schema-badge">IFC4</span>
+              <span class="schema-badge">IFC4.3</span>
+              <span class="schema-badge">STEP</span>
+            </div>
+            <div class="meta-rows">
+              <div class="meta-row"><span>Processing</span><span>Client-side</span></div>
+              <div class="meta-row"><span>Max file size</span><span>No limit</span></div>
+              <div class="meta-row"><span>Data privacy</span><span>Never uploaded</span></div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Right: Workspace -->
+        <div class="input-workspace">
+
+          <!-- Tab Bar -->
+          <div class="ws-tabs">
+            <button class="ws-tab active" data-mode="paste">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Paste IFC
+            </button>
+            <button class="ws-tab" data-mode="file">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M14 10v2.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12.5V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Upload File
+            </button>
+            <button class="ws-tab" data-mode="url">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 005-5M9.5 6.5a3.5 3.5 0 00-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Load from URL
+            </button>
+          </div>
+
+          <!-- Editor: Paste Mode -->
+          <div class="ws-mode active" id="mode-paste">
+            <div class="editor-wrap">
+              <div class="editor-gutter" id="editorGutter"></div>
+              <textarea id="ifcInput" class="editor-textarea" placeholder="Paste your IFC/STEP file content here...
+
+ISO-10303-21;
 HEADER;
 FILE_DESCRIPTION((...));
-...
 DATA;
 #1= IFCPROJECT('guid',...);
 #2= IFCSITE('guid',...);
 ...
 ENDSEC;
 END-ISO-10303-21;" spellcheck="false"></textarea>
+            </div>
+            <div class="editor-status" id="editorStatus">
+              <span class="status-dot"></span>
+              <span id="editorLineCount">0 lines</span>
+              <span class="status-sep">|</span>
+              <span id="editorCharCount">0 chars</span>
+            </div>
           </div>
 
-          <!-- File Upload Mode -->
-          <div class="input-mode" id="mode-file">
+          <!-- Editor: File Upload Mode -->
+          <div class="ws-mode" id="mode-file">
             <div class="upload-zone" id="uploadZone">
               <input type="file" id="fileInput" accept=".ifc,.stp,.step" hidden>
-              <div class="upload-icon">
-                <svg width="36" height="36" viewBox="0 0 40 40" fill="none"><path d="M20 5v22M12 13l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 25v6a4 4 0 004 4h20a4 4 0 004-4v-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+              <div class="upload-visual">
+                <div class="upload-ring">
+                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M24 8v24M16 16l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 32v6a2 2 0 002 2h28a2 2 0 002-2v-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+                </div>
+                <h3 class="upload-title">Drop your IFC file here</h3>
+                <p class="upload-sub">or click to browse local files</p>
+                <div class="upload-badges">
+                  <span class="upload-badge">.ifc</span>
+                  <span class="upload-badge">.stp</span>
+                  <span class="upload-badge">.step</span>
+                </div>
               </div>
-              <p class="upload-title">Drop your .ifc file here</p>
-              <p class="upload-sub">or click to browse local files</p>
-              <p class="upload-formats">Accepted: .ifc .stp .step</p>
             </div>
-            <div class="upload-status hidden" id="uploadStatus">
+            <div class="upload-result hidden" id="uploadStatus">
               <div class="upload-file-info">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.5"/></svg>
                 <span class="upload-filename" id="uploadFilename"></span>
                 <span class="upload-size" id="uploadSize"></span>
+                <span class="upload-check">Ready</span>
               </div>
             </div>
           </div>
 
-          <!-- URL Mode -->
-          <div class="input-mode" id="mode-url">
-            <div class="url-input-group">
-              <label class="url-label">IFC File URL</label>
-              <div class="url-field">
-                <input type="text" id="urlInput" placeholder="https://s3.amazonaws.com/bucket/model.ifc" spellcheck="false">
+          <!-- Editor: URL Mode -->
+          <div class="ws-mode" id="mode-url">
+            <div class="url-panel">
+              <label class="url-label">Remote IFC File URL</label>
+              <div class="url-input-wrap">
+                <svg class="url-icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a3.5 3.5 0 005-5M9.5 6.5a3.5 3.5 0 00-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <input type="text" id="urlInput" class="url-input" placeholder="https://s3.amazonaws.com/bucket/model.ifc" spellcheck="false">
               </div>
-              <p class="url-hint">Supports direct download links, S3 presigned URLs, and any public HTTP endpoint serving IFC content.</p>
-              <div class="url-examples">
-                <span class="url-example-label">Examples</span>
-                <code>https://s3.amazonaws.com/bucket/model.ifc</code>
+              <p class="url-hint">Supports S3 presigned URLs, public HTTP endpoints, and direct download links.</p>
+              <div class="url-example-tags">
+                <code>s3://bucket/model.ifc</code>
                 <code>https://cdn.example.com/building.ifc</code>
               </div>
             </div>
           </div>
 
           <!-- Action Bar -->
-          <div class="input-actions">
-            <button id="loadSampleBtn" class="btn-secondary">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="ws-action-bar">
+            <button id="loadSampleBtn" class="action-btn action-secondary">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Load Sample
             </button>
             <div class="action-spacer"></div>
-            <span class="parse-hint" id="parseHint"></span>
-            <button id="parseBtn" class="btn-primary">
-              Parse &amp; Visualize
+            <span class="action-hint" id="parseHint"></span>
+            <button id="parseBtn" class="action-btn action-primary">
+              <span class="action-label">Parse &amp; Visualize</span>
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M10 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
-        </div>
 
+        </div>
       </div>
     </section>
 
-    <!-- Visualization Section -->
+    <!-- ===== Visualization Section ===== -->
     <section id="vizSection" class="viz-section hidden">
-      <!-- Stats Bar -->
       <div id="statsBar" class="stats-bar">
         <div class="stat-chip" id="statEntities"><span class="stat-value">0</span><span class="stat-label">Entities</span></div>
         <div class="stat-chip" id="statTypes"><span class="stat-value">0</span><span class="stat-label">Unique Types</span></div>
@@ -167,10 +248,7 @@ END-ISO-10303-21;" spellcheck="false"></textarea>
         <div class="stat-chip" id="statSpatial"><span class="stat-value">0</span><span class="stat-label">Spatial Elements</span></div>
         <div class="stat-chip" id="statBuilding"><span class="stat-value">0</span><span class="stat-label">Building Elements</span></div>
       </div>
-
-      <!-- Main Layout -->
       <div class="viz-layout">
-        <!-- Sidebar -->
         <aside id="sidebar" class="sidebar">
           <div class="sidebar-section">
             <h3>Entity Explorer</h3>
@@ -192,30 +270,18 @@ END-ISO-10303-21;" spellcheck="false"></textarea>
             <div id="legend" class="legend"></div>
           </div>
         </aside>
-
-        <!-- Main View -->
         <main class="main-view">
           <div class="view-tabs">
-            <button class="tab-btn" data-view="tree" id="tabTree">
-              Hierarchy Tree &nearr;
-            </button>
-            <button class="tab-btn" data-view="graph" id="tabGraph">
-              Relationship Graph &nearr;
-            </button>
-            <button class="tab-btn active" data-view="stats" id="tabStats">
-              Statistics
-            </button>
-            <button class="tab-btn" data-view="guide" id="tabGuide">
-              IFC Guide
-            </button>
+            <button class="tab-btn" data-view="tree" id="tabTree">Hierarchy Tree &nearr;</button>
+            <button class="tab-btn" data-view="graph" id="tabGraph">Relationship Graph &nearr;</button>
+            <button class="tab-btn active" data-view="stats" id="tabStats">Statistics</button>
+            <button class="tab-btn" data-view="guide" id="tabGuide">IFC Guide</button>
           </div>
           <div id="viewContainer" class="view-container">
             <div id="statsView" class="view-panel active"></div>
             <div id="guideView" class="view-panel"></div>
           </div>
         </main>
-
-        <!-- Detail Panel -->
         <aside id="detailPanel" class="detail-panel">
           <div class="detail-placeholder">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.3"/><path d="M24 16v8M24 28v2" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"/></svg>
